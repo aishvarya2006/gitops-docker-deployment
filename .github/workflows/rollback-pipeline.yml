@@ -1,0 +1,53 @@
+name: Resilient Integrated Pipeline with Automated Rollback
+
+on:
+  push:
+    branches: ["main"]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Check out source code
+        uses: actions/checkout@v4
+
+      - name: Build Container Image
+        run: |
+          docker build -t static-app:${{ github.sha }} .
+          docker tag static-app:${{ github.sha }} static-app:latest
+
+      - name: Execute Health and Integration Verification
+        id: test_step
+        run: |
+          echo "Executing pipeline verification checks..."
+          echo "Simulating a critical failure..."
+          exit 1
+
+      - name: Deploy Updated Application Container
+        if: success()
+        run: |
+          docker stop dynamic-prod-app || true
+          docker rm dynamic-prod-app || true
+          docker run -d -p 80:80 \
+            --name dynamic-prod-app \
+            static-app:latest
+
+      - name: Automated Rollback Handler
+        if: failure()
+        run: |
+          echo "=================================================="
+          echo "CRITICAL FAILURE DETECTED"
+          echo "INITIATING AUTOMATED ROLLBACK"
+          echo "=================================================="
+
+          docker stop dynamic-prod-app || true
+          docker rm dynamic-prod-app || true
+
+          docker run -d -p 80:80 \
+            --name dynamic-prod-app \
+            nginx:alpine
+
+          echo "Rollback successful."
+          echo "Stable container state restored."
