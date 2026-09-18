@@ -1,0 +1,44 @@
+name: Multi-Stage CI/CD Deployment Pipeline
+
+on:
+  push:
+    branches: ["main"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out source code
+        uses: actions/checkout@v4
+
+      - name: Build Docker Container Image
+        run: |
+          docker build -t static-app:latest .
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Deploy to Target Server via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.TARGET_HOST_IP }}
+          username: ${{ secrets.TARGET_HOST_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+          script: |
+            docker stop dynamic-prod-app || true
+            docker rm dynamic-prod-app || true
+
+            docker run -d \
+              -p 80:80 \
+              --name dynamic-prod-app \
+              nginx:alpine
+
+            docker ps --filter "name=dynamic-prod-app"
+
+            curl -I http://localhost
