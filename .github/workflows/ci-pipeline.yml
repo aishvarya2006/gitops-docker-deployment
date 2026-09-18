@@ -39,4 +39,6 @@ jobs:
 
             docker ps --filter "name=dynamic-prod-app"
 
+            sleep 5
+
             curl -I http://localhost
